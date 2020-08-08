@@ -1,3 +1,5 @@
+![npm (scoped)](https://img.shields.io/npm/v/gulel?label=NPM) ![NPM](https://img.shields.io/npm/l/gulel?label=License) ![npm](https://img.shields.io/npm/dt/gulel?label=Downloads)
+
 # Gulel - Local Server for Twitch Webhooks
 Gulel is an [express](https://expressjs.com) based application server that manages [Twitch Webhooks](https://dev.twitch.tv/docs/api/guide#webhooks) with minimal setup. It uses [ngrok](https://ngrok.com/) to make the local server reachable by Twitch servers.
 
