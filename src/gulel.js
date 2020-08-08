@@ -18,9 +18,15 @@ const twitchBaseUrl = 'https://api.twitch.tv/helix'
 router.use(morgan('tiny'))
 router.use(parser.json({ verify: (req, res, buf, encoding) => { req.rawBody = buf.toString() } }))
 
+app.isListening = false
 app.subscriptions = []
 
-app.subscribe = (topic, callback) => {
+app.getSubscription = (topic) => {
+  if (!topic.startsWith(twitchBaseUrl)) topic = twitchBaseUrl + topic
+  return app.subscriptions.find((sub) => sub.hub['hub.topic'] === topic)
+}
+
+app.subscribe = async (topic, callback) => {
   // remove the twitch base url from the topic if present
   if (topic.startsWith(twitchBaseUrl)) topic = topic.replace(twitchBaseUrl, '')
 
@@ -29,13 +35,13 @@ app.subscribe = (topic, callback) => {
   router.route(`/${context}`)
     .get(async (req, res, nxt) => {
       try {
-        const sub = app.subscriptions.find((sub) => sub.hub['hub.topic'] === req.query['hub.topic'])
+        const sub = app.getSubscription(req.query['hub.topic'])
 
         if (sub) {
           if (req.query && req.query['hub.challenge']) {
             // has a challenge
 
-            if (req.query['hub.mode'] === 'subscribe')sub.subscribed = true
+            if (req.query['hub.mode'] === 'subscribe') sub.markSubscribed()
             else if (req.query['hub.mode'] === 'unsubscribe') sub.subscribed = false
 
             res.send(req.query['hub.challenge'])
@@ -71,22 +77,31 @@ app.subscribe = (topic, callback) => {
       } catch (err) { nxt(err) }
     })
 
-  app.subscriptions.push({
+  const subscription = {
     hub: {
       'hub.callback': context, // domain will be added later
       'hub.topic': twitchBaseUrl + topic,
-      'hub.lease_seconds': 3600
+      'hub.lease_seconds': 120
+    },
+    getHub: function () {
+      const hub = { ...this.hub }
+
+      hub['hub.callback'] = app.config.server.baseUrl + '/' + hub['hub.callback']
+      hub['hub.secret'] = app.config.twitch.secret
+
+      return hub
     },
     subscribed: false,
-    subscribe: async function () {
-      await app.twitch.subscribe(this.hub)
-      // const sub = this
-      // setTimeout(() => sub.unsubscribe(), 5000)
+    markSubscribed: function () {
+      this.subscribed = true
       this.enableRenewal()
+    },
+    subscribe: function () {
+      app.twitch.subscribe(this.getHub())
     },
     unsubscribe: async function () {
       if (this.subscribed) {
-        await app.twitch.unsubscribe(this.hub)
+        await app.twitch.unsubscribe(this.getHub())
       }
     },
     enableRenewal: function () {
@@ -101,7 +116,16 @@ app.subscribe = (topic, callback) => {
         }, (sub.hub['hub.lease_seconds'] - 60) * 1000)
       }
     }
-  })
+  }
+
+  app.subscriptions.push(subscription)
+
+  // server is running
+  if (app.isListening) {
+    await subscription.subscribe()
+  }
+
+  return subscription
 }
 
 app.router = router
@@ -112,6 +136,32 @@ app.use((err, req, res, nxt) => {
   console.error(err)
   res.sendStatus(500)
 })
+
+app.shutdown = async () => {
+  // unsubcribe active subscriptions
+
+  console.log('Gulel is shutting down')
+  console.log('Unsubscribing from active subscriptions')
+
+  for (let index = 0; index < app.subscriptions.length; index++) {
+    const sub = app.subscriptions[index]
+    await sub.unsubscribe()
+  }
+
+  // wait till all active subscriptions are unsubscribed
+
+  while (true) {
+    const sub = app.subscriptions.find((sub) => sub.subscribed === true)
+
+    if (sub) {
+      await sleep(1000)
+    } else {
+      break
+    }
+  }
+
+  process.exit(0)
+}
 
 app.start = (config, done) => {
   app.config = config
@@ -136,13 +186,11 @@ app.start = (config, done) => {
 
       const localhost = `http://localhost:${port}`
 
-      let baseUrl
-
       if (config.server.tunnel) {
-        baseUrl = await ngrok.connect(port)
-        console.log(`Gulel is listening at ${baseUrl} -> ${localhost}`)
+        app.config.server.baseUrl = await ngrok.connect(port)
+        console.log(`Gulel is listening at ${app.config.server.baseUrl} -> ${localhost}`)
       } else {
-        baseUrl = localhost
+        app.config.server.baseUrl = localhost
         console.log(`Gulel is listening at ${localhost}`)
       }
 
@@ -150,43 +198,16 @@ app.start = (config, done) => {
 
       for (let index = 0; index < app.subscriptions.length; index++) {
         const sub = app.subscriptions[index]
-        const { hub } = sub
-        hub['hub.callback'] = baseUrl + '/' + hub['hub.callback']
-        hub['hub.secret'] = app.config.twitch.secret
 
         await sub.subscribe()
       }
 
-      const shutDown = async () => {
-        // unsubcribe active subscriptions
-
-        console.log('Gulel is shutting down')
-        console.log('Unsubscribing from active subscriptions')
-
-        for (let index = 0; index < app.subscriptions.length; index++) {
-          const sub = app.subscriptions[index]
-          await sub.unsubscribe()
-        }
-
-        // wait till all active subscriptions are unsubscribed
-
-        while (true) {
-          const sub = app.subscriptions.find((sub) => sub.subscribed === true)
-
-          if (sub) {
-            await sleep(1000)
-          } else {
-            break
-          }
-        }
-
-        process.exit(0)
-      }
+      app.isListening = true
 
       // shut down the server when `quit` key word is entered in terminal
       process.stdin.resume()
       process.stdin.on('data', data => {
-        if (Buffer.compare(data, Buffer.from('quit\n')) === 0) shutDown()
+        if (Buffer.compare(data, Buffer.from('quit\n')) === 0) app.shutdown()
       })
 
       done()

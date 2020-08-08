@@ -76,6 +76,8 @@ Gulel is shutting down
 Unsubscribing from active subscriptions
 ```
 
+Also, `gulel.shutdown()` can be used to shut it down.
+
 ## Examples
 Few examples are available in the [examples](./examples) directory.
 

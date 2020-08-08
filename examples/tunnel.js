@@ -10,8 +10,8 @@ gulel.subscribe('/streams?user_id=29795919', (data) => {
 
 const config = {
   twitch: {
-    accessToken: '<access token>',
-    clientId: '<client id>'
+    accessToken: '9e7ppqxazc802kp11z00vsj2hmjqem',
+    clientId: 'gp762nuuoqcoxypju8c569th9wz7q5'
   },
   server: {
     port: 3000
