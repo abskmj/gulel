@@ -1,6 +1,6 @@
 {
   "name": "gulel",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Gulel is an express based application server that manages Twitch Webhooks with minimal setup",
   "keywords": [
     "twitch",
