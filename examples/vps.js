@@ -14,7 +14,9 @@ const config = {
     clientId: '<client id>'
   },
   server: {
-    port: 3000
+    port: 3000,
+    tunnel: false,
+    baseUrl: 'https://postb.in/1597325597324-6519950181245'
   }
 }
 

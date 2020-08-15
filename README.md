@@ -91,6 +91,11 @@ twitch.secret
 This secret will be used as `hub.secret` while creating subscriptions. If not configured, the application will generate one.
 
 ```
+twitch.lease
+```
+This value will be used as `lease_seconds` when subscribing to a Twitch event. Value is in seconds and default is `3600` i.e. an hour.
+
+```
 twitch.accessToken
 ```
 User's Access Token for authenticating Twitch APIs. 
@@ -106,12 +111,20 @@ Client ID for the Twitch application.
 ```
 server.port
 ```
-Local port number where the server will listen on. Should be a number.
+Local port number where the server will listen on. Should be a number. Default is `3003`
 
 ```
 server.tunnel
 ```
 If `true`, ngrok service will be used. The default value is `true`
 
+```
+server.baseUrl
+```
+If set, the value will be used as the base URL for Twitch subscription callbacks.
+
 # Fixes & Improvements
 Head over to the issues tab at [github.com](https://github.com/abskmj/gulel/issues) to report a bug or suggest an improvement. Feel free to contribute to the code or documentation by creating a pull request.
+
+# Sponsor
+If you find the project interesting or helpful, please consider sponsoring it at [github.com](https://github.com/abskmj/gulel). 

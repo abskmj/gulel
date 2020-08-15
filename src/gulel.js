@@ -80,14 +80,14 @@ app.subscribe = async (topic, callback) => {
   const subscription = {
     hub: {
       'hub.callback': context, // domain will be added later
-      'hub.topic': twitchBaseUrl + topic,
-      'hub.lease_seconds': 120
+      'hub.topic': twitchBaseUrl + topic
     },
     getHub: function () {
       const hub = { ...this.hub }
 
       hub['hub.callback'] = app.config.server.baseUrl + '/' + hub['hub.callback']
       hub['hub.secret'] = app.config.twitch.secret
+      hub['hub.lease_seconds'] = app.config.twitch.lease
 
       return hub
     },
@@ -108,12 +108,13 @@ app.subscribe = async (topic, callback) => {
       const sub = this
       if (sub.subscribed) {
         const currentMillis = (new Date()).getTime()
-        const nextMillis = currentMillis + ((sub.hub['hub.lease_seconds'] - 60) * 1000)
+        const timerMillis = ((app.config.twitch.lease - 60) * 1000)
+        const nextMillis = currentMillis + timerMillis
         console.log('Subscription will auto renew at', (new Date(nextMillis)).toString())
 
         setTimeout(async function () {
           await sub.subscribe()
-        }, (sub.hub['hub.lease_seconds'] - 60) * 1000)
+        }, timerMillis)
       }
     }
   }
@@ -164,21 +165,24 @@ app.shutdown = async () => {
 }
 
 app.start = (config, done) => {
-  app.config = config
+  const twitchDefaultConfig = {
+    secret: crypto.secret(),
+    lease: 3600
+  }
 
-  // check if a secret is configured
-  if (app.config && app.config.twitch && app.config.twitch.secret) {
+  const serverDefaultConfig = {
+    tunnel: true,
+    port: 3003
+  }
 
-  } else app.config.twitch.secret = crypto.secret()
+  app.config = { twitch: {}, server: {} }
 
-  // check is tunnel option is configured
-  if (app.config && app.config.server && app.config.server.tunnel === false) {
+  Object.assign(app.config.twitch, twitchDefaultConfig, config.twitch)
+  Object.assign(app.config.server, serverDefaultConfig, config.server)
 
-  } else app.config.server.tunnel = true
+  app.twitch = twitch(app.config.twitch)
 
-  app.twitch = twitch(config.twitch)
-
-  const { port } = config.server
+  const { port } = app.config.server
 
   app.listen(port, async () => {
     try {
@@ -186,11 +190,11 @@ app.start = (config, done) => {
 
       const localhost = `http://localhost:${port}`
 
-      if (config.server.tunnel) {
-        app.config.server.baseUrl = await ngrok.connect(port)
+      if (app.config.server.tunnel) {
+        if (!app.config.server.baseUrl) app.config.server.baseUrl = await ngrok.connect(port)
         console.log(`Gulel is listening at ${app.config.server.baseUrl} -> ${localhost}`)
       } else {
-        app.config.server.baseUrl = localhost
+        if (!app.config.server.baseUrl) app.config.server.baseUrl = localhost
         console.log(`Gulel is listening at ${localhost}`)
       }
 

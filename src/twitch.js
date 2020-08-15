@@ -9,6 +9,20 @@ module.exports = (options) => {
     }
   })
 
+  // interceptors for debugging purposes only
+  // http.interceptors.request.use((config) => {
+  //   console.log(config)
+  //   return config
+  // })
+
+  // http.interceptors.response.use((response) => {
+  //   console.log(response)
+  //   return response
+  // }, (error) => {
+  //   console.log(error)
+  //   return error
+  // })
+
   const subscribe = (hub) => {
     return http.post('/webhooks/hub', { ...hub, 'hub.mode': 'subscribe' })
   }
